@@ -41,13 +41,13 @@ public class TestHM {
   public void test00() { run( "fred",null,null); }
 
   @Test public void test01() { run( "3" ,
-                                    "3", TypeInt.con(3));  }
+                                    "+3", TypeInt.con(3));  }
 
-  @Test public void test02() { run( "(pair1 3)" ,
-                                    "{ A -> ( 3, A) }", tfs(TypeMemPtr.make(7,make_tups(TypeInt.con(3),Type.SCALAR)))); }
+  @Test public void test02() { run( "{ x -> (pair x 3)}" ,
+                                    "{ A -> ( nint64, A) }", tfs(TypeMemPtr.make(7,make_tups(TypeInt.con(3),Type.SCALAR)))); }
 
   @Test public void test03() { run( "{ z -> (pair (z 0) (z \"abc\")) }" ,
-                                    "{ { *[0,4]\"abc\"? -> A } -> ( A, A) }", tfs(tuple2)); }
+                                    "{ { *[0,4]str? -> A } -> ( A, A) }", tfs(tuple2)); }
 
   @Test public void test04() { run( "fact = { n -> (if (eq0 n) 1 (* n (fact (dec n))))}; fact",
                                     "{ int64 -> int64 }", tfs(TypeInt.INT64) ); }
@@ -57,7 +57,7 @@ public class TestHM {
   @Test public void test05() {
     Root syn = HM.hm("({ x -> (pair (x 3) (x 5)) } {y->y})");
     if( HM.DO_HM )
-      assertEquals("( nint8, nint8)",syn._hmt.p());
+      assertEquals("( nint64, nint64)",syn._hmt.p());
     if( HM.DO_GCP )
       if( HM.DO_HM )
         assertEquals(tuple82,syn.flow_type());
@@ -68,10 +68,10 @@ public class TestHM {
   @Test public void test06() {
     Root syn = HM.hm("id={x->x}; (pair (id 3) (id \"abc\"))");
     if( HM.DO_HM ) // HM is sharper here than in test05, because id is generalized per each use site
-      assertEquals("( 3, *[4]\"abc\")",syn._hmt.p());
+      assertEquals("( nint64, *[4]str)",syn._hmt.p());
     if( HM.DO_GCP )
       if( HM.DO_HM )
-        assertEquals(TypeMemPtr.make(7,make_tups(TypeInt.con(3),TypeMemPtr.make(4,TypeStr.ABC))),syn.flow_type());
+        assertEquals(TypeMemPtr.make(7,make_tups(TypeInt.NINT64,TypeMemPtr.STRPTR)),syn.flow_type());
       else
         assertEquals(tuplen2,syn.flow_type());
   }
@@ -83,7 +83,7 @@ public class TestHM {
                                     "{ A:{ A -> B } -> B }", tfs(Type.SCALAR) ); }
 
   @Test public void test08() { run( "g = {f -> 5}; (g g)",
-                                    "5", TypeInt.con(5)); }
+                                    "nint64", TypeInt.con(5)); }
 
   // example that demonstrates generic and non-generic variables:
   @Test public void test09() { run( "{ g -> f = { x -> g }; (pair (f 3) (f \"abc\"))}",
@@ -98,11 +98,11 @@ public class TestHM {
 
   // Stacked functions ignoring all function arguments
   @Test public void test12() { run( "map = { fun -> { x -> 2 } }; ((map 3) 5)",
-                                    "2", TypeInt.con(2)); }
+                                    "nint64", TypeInt.con(2)); }
 
   // map takes a function and an element (collection?) and applies it (applies to collection?)
   @Test public void test13() { run( "map = { fun -> { x -> (fun x)}}; { p -> 5 }",
-                                    "{ A -> 5 }", tfs(TypeInt.con(5))); }
+                                    "{ A -> nint64 }", tfs(TypeInt.con(5))); }
 
   // Looking at when tvars are duplicated ("fresh" copies made).
   // This is the "map" problem with a scalar instead of a collection.
@@ -121,16 +121,16 @@ public class TestHM {
 
   // map takes a function and an element (collection?) and applies it (applies to collection?)
   @Test public void test15() { run("map = { fun x -> (fun x)}; (map {a->3} 5)",
-                                   "3", TypeInt.con(3)); }
+                                   "nint64", TypeInt.con(3)); }
 
   // map takes a function and an element (collection?) and applies it (applies to collection?)
   @Test public void test16() { run("map = { fun x -> (fun x)}; (map { a-> (pair a a)} 5)",
-                                   "( 5, 5)", tuple55); }
+                                   "( nint64, nint64)", tuple55); }
 
   @Test public void test17() { run("fcn = { p -> { a -> (pair a a) }};"+
                                    "map = { fun x -> (fun x)};"+
                                    "{ q -> (map (fcn q) 5)}",
-                                   "{ A -> ( 5, 5) }", tfs(tuple55)); }
+                                   "{ A -> ( nint64, nint64) }", tfs(tuple55)); }
 
   // Checking behavior when using "if" to merge two functions with sufficiently
   // different signatures, then attempting to pass them to a map & calling internally.
@@ -147,18 +147,15 @@ public class TestHM {
                      "map = { fun x -> (fun x)};"+
                      "{ q -> (map (fcn q) 5)}");
     if( HM.DO_HM )
-      assertEquals("{ A? -> ( B:Cannot unify A:( 3, A) and 5, B) }",syn._hmt.p());
+      assertEquals("{ A? -> ( B:Cannot unify A:( nint64, A) and nint64, B) }",syn._hmt.p());
     if( HM.DO_GCP )
-      if( HM.DO_HM )
-        assertEquals(tfs(TypeMemPtr.make(7,make_tups(Type.XNSCALR,TypeMemPtr.make(7,make_tups(TypeInt.con(3),Type.XNSCALR))))),syn.flow_type());
-      else
-        assertEquals(tfs(TypeMemPtr.make(7,make_tups(TypeInt.con(5),Type.NSCALR))),syn.flow_type());
+      assertEquals(tfs(TypeMemPtr.make(7,make_tups(TypeInt.con(5),Type.NSCALR))),syn.flow_type());
   }
 
   @Test public void test19() { run("cons ={x y-> {cadr -> (cadr x y)}};"+
                                    "cdr ={mycons -> (mycons { p q -> q})};"+
                                    "(cdr (cons 2 3))",
-                                   "3", TypeInt.con(3)); }
+                                   "nint64", TypeInt.con(3)); }
 
   // Take 2nd element of pair, and applies a function.
   //    let map = fn parg fun => (fun (cdr parg))
@@ -173,10 +170,10 @@ public class TestHM {
                      "map ={fun parg -> (fun (cdr parg))};"+
                      "(pair (map str (cons 0 5)) (map isempty (cons 0 \"abc\")))");
     if( HM.DO_HM )
-      assertEquals("( *[4]str, int1)",syn._hmt.p());
+      assertEquals("( *[4]str, int64)",syn._hmt.p());
     if( HM.DO_GCP )
       if( HM.DO_HM )
-        assertEquals(TypeMemPtr.make(7,make_tups(TypeMemPtr.STRPTR,TypeInt.BOOL)),syn.flow_type());
+        assertEquals(TypeMemPtr.make(7,make_tups(TypeMemPtr.STRPTR,TypeInt.INT64)),syn.flow_type());
       else
         assertEquals(tuple2,syn.flow_type());
   }
@@ -196,7 +193,7 @@ public class TestHM {
                                    "  is_odd = { n -> (if (eq0 n) 0 (is_even (dec n)))}; "+
                                    "     { n -> (if (eq0 n) 1 (is_odd (dec n)))};"+
                                    "(is_even 3)" ,
-                                   "int1", TypeInt.BOOL); }
+                                   "int64", TypeInt.BOOL); }
 
   // Toss a function into a pair & pull it back out
   @Test public void test24() { run("{ g -> fgz = "+
@@ -206,26 +203,26 @@ public class TestHM {
                                    "      (pair (fgz 3) (fgz 5))"+
                                    "}"
                                    ,
-                                   "{ { nint8 -> A } -> ( A, A) }", tfs(tuple2)); }
+                                   "{ { nint64 -> A } -> ( A, A) }", tfs(tuple2)); }
 
   // Basic structure test
   @Test public void test25() { run("@{x=2, y=3}",
-                                   "@{ x = 2, y = 3}",
+                                   "@{ x = nint64, y = nint64}",
                                    TypeMemPtr.make(9,TypeStruct.make(TypeFld.NO_DISP,
                                                                      TypeFld.make_arg(TypeInt.con(2),ARG_IDX),
                                                                      TypeFld.make_arg(TypeInt.con(3),ARG_IDX+1))) ); }
 
   // Basic field test
   @Test public void test26() { run("@{x =2, y =3}.x",
-                                   "2", TypeInt.con(2)); }
+                                   "nint64", TypeInt.con(2)); }
 
   // Basic field test
   @Test public void test27() { run("5.x",
-                                   "Missing field x in 5", Type.SCALAR); }
+                                   "Missing field x in nint64", Type.SCALAR); }
 
   // Basic field test.
   @Test public void test28() { run("@{ y =3}.x",
-                                   "Missing field x in @{ y = 3}",
+                                   "Missing field x in @{ y = nint64}",
                                    Type.SCALAR); }
 
   @Test public void test29() { run("{ g -> @{x=g, y=g}}",
@@ -233,7 +230,7 @@ public class TestHM {
 
   // Load common field 'x', ignoring mismatched fields y and z
   @Test public void test30() { run("{ pred -> (if pred @{x=2,y=3} @{x=3,z= \"abc\"}) .x }",
-                                   "{ A? -> nint8 }", tfs(TypeInt.NINT8)); }
+                                   "{ A? -> nint64 }", tfs(TypeInt.NINT8)); }
 
   // Load some fields from an unknown struct: area of a rectangle.
   // Since no nil-check, correctly types as needing a not-nil input.
@@ -380,7 +377,7 @@ public class TestHM {
                      "out_bool= (map in_str { xstr -> (eq xstr \"def\")}); "+
                      "(pair out_str out_bool)");
     if( HM.DO_HM )
-      assertEquals("( *[4]str, int1)",syn._hmt.p());
+      assertEquals("( *[4]str, int64)",syn._hmt.p());
     if( HM.DO_GCP )
       if( HM.DO_HM )
         assertEquals(TypeMemPtr.make(7,make_tups(TypeMemPtr.STRPTR,TypeInt.BOOL)),syn.flow_type());
@@ -405,7 +402,7 @@ public class TestHM {
   @Test public void test43() {
     Root syn = HM.hm("pred = 0; s1 = @{ x=\"abc\" }; s2 = @{ y=3.4 }; z = (if pred s1 s2).x; s2.y");
     if( HM.DO_HM )
-      assertEquals("3.4000000953674316",syn._hmt.p());
+      assertEquals("flt64",syn._hmt.p());
     if( HM.DO_GCP )
       assertEquals(TypeFlt.con(3.4f), syn.flow_type());
   }
@@ -417,7 +414,7 @@ public class TestHM {
       if( HM.DO_GCP )
         assertEquals("1.2000000476837158",syn._hmt.p());
       else
-        assertEquals("Cannot unify 1.2000000476837158 and ()",syn._hmt.p());
+        assertEquals("Cannot unify flt64 and ()",syn._hmt.p());
     }
     if( HM.DO_GCP )
       assertEquals(TypeFlt.con(1.2f), syn.flow_type());
@@ -442,7 +439,7 @@ public class TestHM {
     if( HM.DO_HM )
       assertEquals(HM.DO_GCP
                    ? "*[0,4]str?"  // Both HM and GCP
-                   : "Cannot unify *[4]\"abc\" and 3", // HM alone cannot do this one
+                   : "Cannot unify *[4]str and nint64", // HM alone cannot do this one
                    syn._hmt.p());
     if( HM.DO_GCP )
       assertEquals(HM.DO_HM
@@ -462,7 +459,7 @@ public class TestHM {
 
   // Basic uplifting after check
   @Test public void test48() { run("{ pred -> tmp=(if pred @{x=3} 0); (if tmp tmp.x 4) }",
-                                   "{ A? -> nint8 }", tfs(TypeInt.NINT8)); }
+                                   "{ A? -> nint64 }", tfs(TypeInt.NINT8)); }
 
 
   // map is parametric in nil-ness
@@ -474,7 +471,7 @@ public class TestHM {
                      "  )\n"+
                      "}");
     if( HM.DO_HM )
-      assertEquals("{ A? -> ( 3, nint8) }",syn._hmt.p());
+      assertEquals("{ A? -> ( nint64, nint64) }",syn._hmt.p());
     if( HM.DO_GCP )
       if( HM.DO_HM ) assertEquals(tfs(TypeMemPtr.make(7,make_tups(TypeInt.con(3), TypeInt.NINT8 ))),syn.flow_type());
       else           assertEquals(tfs(TypeMemPtr.make(7,make_tups(TypeInt.NINT8 , TypeInt.NINT8 ))),syn.flow_type());
@@ -546,7 +543,7 @@ public class TestHM {
           }
         }
        */
-      assertEquals("@{ a = nint8, b = (), bool = @{ false = A:@{ and = { A -> A }, or = { A -> A }, thenElse = { { () -> B } { () -> B } -> B }}, force = { C? -> D:@{ and = { D -> D }, or = { D -> D }, thenElse = { { () -> E } { () -> E } -> E }} }, true = F:@{ and = { F -> F }, or = { F -> F }, thenElse = { { () -> G } { () -> G } -> G }}}}",syn._hmt.p());
+      assertEquals("@{ a = nint64, b = (), bool = @{ false = A:@{ and = { A -> A }, or = { A -> A }, thenElse = { { () -> B } { () -> B } -> B }}, force = { C? -> D:@{ and = { D -> D }, or = { D -> D }, thenElse = { { () -> E } { () -> E } -> E }} }, true = F:@{ and = { F -> F }, or = { F -> F }, thenElse = { { () -> G } { () -> G } -> G }}}}",syn._hmt.p());
     }
     if( HM.DO_GCP ) {
       Type tf   = TypeMemPtr.make(BitsAlias.FULL.make(10,11),
@@ -632,7 +629,7 @@ public class TestHM {
                      "left"+
                      "");
     if( HM.DO_HM )
-      assertEquals("A:@{ n1 = @{ n1 = A, v1 = 7}, v1 = 7}",syn._hmt.p());
+      assertEquals("A:@{ n1 = @{ n1 = A, v1 = nint64}, v1 = nint64}",syn._hmt.p());
     if( HM.DO_GCP )
       assertEquals(build_cycle2(false,TypeInt.con(7)),syn.flow_type());
   }
@@ -653,7 +650,7 @@ public class TestHM {
 "all"+
 "");
     if( HM.DO_HM )
-        assertEquals("@{ boolSub = { A? -> @{ not = { B -> C:@{ not = { D -> C }, thenElse = { { 7 -> E } { 7 -> E } -> E }} }, thenElse = { { 7 -> F } { 7 -> F } -> F }} }, false = C, true = C}",syn._hmt.p());
+        assertEquals("@{ boolSub = { A? -> @{ not = { B -> C:@{ not = { D -> C }, thenElse = { { nint64 -> E } { nint64 -> E } -> E }} }, thenElse = { { nint64 -> F } { nint64 -> F } -> F }} }, false = C, true = C}",syn._hmt.p());
     if( HM.DO_GCP ) {
 
       Type tt = TypeMemPtr.make(BitsAlias.FULL.make(9),
@@ -846,14 +843,13 @@ public class TestHM {
   // Checking an AA example
   @Test public void test60() {
     Root syn = HM.hm(
-"prod = { x -> (if x (* (prod x.n) x.v) 1)};"+
-"(prod @{n= @{n=0, v=3}, v=2})"+
+"id={x->x}; (pair (* (id 5) 7) (id @{x=\"abc\"}).x)"+
 "");
 
     if( HM.DO_HM )
-      assertEquals(stripIndent("int64"), stripIndent(syn._hmt.p()));
+      assertEquals(stripIndent("(int64, *[4]str)"), stripIndent(syn._hmt.p()));
     if( HM.DO_GCP ) {
-      assertEquals(TypeInt.INT64,syn.flow_type());
+      assertEquals(TypeMemPtr.make(7,TypeStruct.tupsD(TypeInt.INT64,Type.SCALAR)),syn.flow_type());
     }
   }
 
